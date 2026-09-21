@@ -1,14 +1,46 @@
-<script>
-
 const WEB_APP_URL =
-  "https://script.googleusercontent.com/a/macros/elite9696.com/echo?user_content_key=AUkAhnRb37nRxaGARH_E6Cd6colpblwpfBoxAW6-zfnR--AEAg4ElND1Sp-tQ8AZq4V5dUDunYQX9dQ-1Jfs7iHb3qgs6MKUnN1jNKwpzqgZ_izQQT2j_g1cYsWH1JAqNkj4PRH8bkQA6pp83aAIU8tqycL59GYEyL4n8QCjQUHGc2eFM8GjOpRJ20eXAV3CEhpStFcpcD_CDx_I9ZBu_Xi8jTyiByOKNcETHcF4VF6O_66cDXgOwjHyZ0i2P-qid17oOdwRCPrIkqABIaEzQfWcbovDCqZF4SHtCnFBu96Pa5pUwVJJcP4&lib=Ma7Uj8Yv9LxahLPM9vyu1WITopOPt4sIH";
+  "https://script.google.com/macros/s/AKfycbzfOSbqvB5IsyT0jIl9yPRGsDZfOWJ1xv5XMeBYQWV1K81GjSzjCNzCMOAotTQwGk9lQQ/exec";
 
 
-// ==============================
-// STAFF LIST
-// ==============================
+function loadStaffList() {
 
-async function loadStaffList() {
+  const staffStatus =
+    document.getElementById("staffStatus");
+
+  staffStatus.innerText =
+    "Loading staff names...";
+
+  const oldScript =
+    document.getElementById("staffListScript");
+
+  if (oldScript) {
+    oldScript.remove();
+  }
+
+  const script =
+    document.createElement("script");
+
+  script.id =
+    "staffListScript";
+
+  script.src =
+    WEB_APP_URL +
+    "?mode=staffList" +
+    "&callback=staffListCallback" +
+    "&t=" + Date.now();
+
+  script.onerror = function() {
+
+    staffStatus.innerText =
+      "❌ Unable to load Staff List.";
+
+  };
+
+  document.body.appendChild(script);
+}
+
+
+function staffListCallback(names) {
 
   const staffSelect =
     document.getElementById("staff");
@@ -16,182 +48,24 @@ async function loadStaffList() {
   const staffStatus =
     document.getElementById("staffStatus");
 
-  try {
+  staffSelect.innerHTML =
+    '<option value="">Select Staff Name</option>';
 
-    staffStatus.innerText =
-      "Loading staff names...";
+  names.forEach(function(name) {
 
-    const response =
-      await fetch(
-        WEB_APP_URL + "?mode=staffList"
-      );
+    const option =
+      document.createElement("option");
 
-    if (!response.ok) {
-      throw new Error(
-        "HTTP " + response.status
-      );
-    }
+    option.value = name;
+    option.textContent = name;
 
-    const names =
-      await response.json();
+    staffSelect.appendChild(option);
 
-    staffSelect.innerHTML =
-      '<option value="">Select Staff Name</option>';
+  });
 
-    names.forEach(function(name) {
-
-      const option =
-        document.createElement("option");
-
-      option.value = name;
-      option.textContent = name;
-
-      staffSelect.appendChild(option);
-
-    });
-
-    staffStatus.innerText =
-      "✅ " +
-      names.length +
-      " staff loaded";
-
-  }
-
-  catch (error) {
-
-    staffStatus.innerText =
-      "❌ Unable to load Staff List: " +
-      error.message;
-
-  }
+  staffStatus.innerText =
+    "✅ " + names.length + " staff loaded";
 }
 
-
-// ==============================
-// CAMERA
-// ==============================
-
-const video =
-  document.getElementById("video");
-
-const status =
-  document.getElementById("status");
-
-
-async function startCamera() {
-
-  try {
-
-    const stream =
-      await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false
-      });
-
-    video.srcObject = stream;
-
-    status.innerText =
-      "✅ Camera ready";
-
-  }
-
-  catch (error) {
-
-    status.innerText =
-      "❌ Camera error: " +
-      error.name +
-      " - " +
-      error.message;
-
-  }
-
-}
-
-
-// ==============================
-// BASIC CHECK
-// ==============================
-
-function checkBeforeClock() {
-
-  const staff =
-    document
-      .getElementById("staff")
-      .value;
-
-  const pin =
-    document
-      .getElementById("pin")
-      .value
-      .trim();
-
-  if (!staff) {
-
-    status.innerText =
-      "❌ Please select Staff Name.";
-
-    return false;
-  }
-
-  if (!pin) {
-
-    status.innerText =
-      "❌ Please enter PIN.";
-
-    return false;
-  }
-
-  if (
-    !video.srcObject ||
-    video.videoWidth === 0 ||
-    video.videoHeight === 0
-  ) {
-
-    status.innerText =
-      "❌ Camera is not ready.";
-
-    return false;
-  }
-
-  return true;
-}
-
-
-// ==============================
-// CLOCK IN
-// ==============================
-
-function clockIn() {
-
-  if (!checkBeforeClock()) {
-    return;
-  }
-
-  status.innerText =
-    "✅ Staff, PIN and Camera are ready. Clock In connection will be added next.";
-}
-
-
-// ==============================
-// CLOCK OUT
-// ==============================
-
-function clockOut() {
-
-  if (!checkBeforeClock()) {
-    return;
-  }
-
-  status.innerText =
-    "✅ Staff, PIN and Camera are ready. Clock Out connection will be added next.";
-}
-
-
-// ==============================
-// START
-// ==============================
 
 loadStaffList();
-startCamera();
-
-</script>
