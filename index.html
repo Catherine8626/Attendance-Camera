@@ -23,8 +23,7 @@
       margin-bottom: 25px;
     }
 
-    select,
-    input {
+    select {
       width: 340px;
       max-width: 90%;
       padding: 14px;
@@ -85,16 +84,6 @@
   <div id="staffStatus">
     Loading staff names...
   </div>
-
-  <br>
-
-  <!-- PIN -->
-  <input
-    id="pin"
-    type="password"
-    placeholder="Enter PIN"
-    autocomplete="off"
-  >
 
   <br>
 
@@ -258,24 +247,10 @@ function checkBeforeClock() {
       .getElementById("staff")
       .value;
 
-  const pin =
-    document
-      .getElementById("pin")
-      .value
-      .trim();
-
   if (!staff) {
 
     status.innerText =
       "❌ Please select Staff Name.";
-
-    return false;
-  }
-
-  if (!pin) {
-
-    status.innerText =
-      "❌ Please enter PIN.";
 
     return false;
   }
@@ -344,12 +319,6 @@ async function submitAttendance(action) {
       .getElementById("staff")
       .value;
 
-  const pin =
-    document
-      .getElementById("pin")
-      .value
-      .trim();
-
   const photoData =
     takePhoto();
 
@@ -363,7 +332,9 @@ async function submitAttendance(action) {
   clockOutButton.disabled = true;
 
   status.innerText =
-    "Processing...";
+    action === "IN"
+      ? "Clocking in..."
+      : "Clocking out...";
 
   try {
 
@@ -379,7 +350,6 @@ async function submitAttendance(action) {
 
         body: JSON.stringify({
           staffName: staff,
-          pin: pin,
           action: action,
           photoData: photoData
         })
@@ -391,15 +361,6 @@ async function submitAttendance(action) {
 
     status.innerText =
       result.message;
-
-    if (result.success) {
-
-      // 成功后清空 PIN
-      document
-        .getElementById("pin")
-        .value = "";
-
-    }
 
   }
 
