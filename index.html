@@ -1,208 +1,14 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <title>Staff Attendance</title>
-
-  <style>
-
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 30px;
-      background: #ffffff;
-    }
-
-    .container {
-      max-width: 500px;
-      margin: auto;
-    }
-
-    h1 {
-      margin-bottom: 30px;
-    }
-
-    select,
-    input {
-      width: 340px;
-      max-width: 90%;
-      padding: 14px;
-      margin: 8px;
-      font-size: 16px;
-      box-sizing: border-box;
-      border: 1px solid #999;
-      border-radius: 6px;
-    }
-
-    video {
-      width: 360px;
-      max-width: 95%;
-      margin-top: 20px;
-      border-radius: 15px;
-      background: #eeeeee;
-    }
-
-    button {
-      padding: 15px 25px;
-      margin: 10px 5px;
-      font-size: 18px;
-      cursor: pointer;
-      border-radius: 6px;
-      border: 1px solid #999;
-      background: white;
-    }
-
-    #status {
-      margin-top: 15px;
-      font-size: 16px;
-    }
-
-    #staffStatus {
-      margin-top: 5px;
-      font-size: 14px;
-    }
-
-  </style>
-
-</head>
-
-
-<body>
-
-<div class="container">
-
-  <h1>Staff Attendance</h1>
-
-
-  <!-- STAFF NAME -->
-
-  <select id="staff">
-
-    <option value="">
-      Loading Staff List...
-    </option>
-
-  </select>
-
-
-  <div id="staffStatus">
-    Loading staff names...
-  </div>
-
-
-  <br>
-
-
-  <!-- PIN -->
-
-  <input
-    id="pin"
-    type="password"
-    placeholder="Enter PIN"
-    autocomplete="off"
-  >
-
-
-  <br>
-
-
-  <!-- CAMERA -->
-
-  <video
-    id="video"
-    autoplay
-    playsinline>
-  </video>
-
-
-  <br>
-
-
-  <!-- BUTTONS -->
-
-  <button
-    id="clockIn"
-    onclick="clockIn()">
-
-    🟢 CLOCK IN
-
-  </button>
-
-
-  <button
-    id="clockOut"
-    onclick="clockOut()">
-
-    🔴 CLOCK OUT
-
-  </button>
-
-
-  <div id="status">
-    Starting camera...
-  </div>
-
-</div>
-
-
 <script>
 
-
-// ==================================================
-// IMPORTANT
-// 把这里换成你看到
-// "Attendance API Ready"
-// 的 Apps Script /exec URL
-// ==================================================
-
 const WEB_APP_URL =
-  "https://script.googleusercontent.com/a/macros/elite9696.com/echo?user_content_key=AUkAhnTta8hnwAE1gJDWy414yh_N9eSft1Ksx_2efVmv5JEFaFHEUiZoPW-1GsTRJk7jKVVhJABMqUeEdKDqiXKESH9wkMzaNN3pnSkaw3yhlm_oIwRYIa78Rd093_hRknRbDL6kHMRSDZIaxVDnUCdMg-CxiaNwXOAQGQRTdEzDB2kTiGup8uh9Poud_YnUypZAsVpQKtD5T6-XQcdJnggyp0N8PGEuInlfumdq0eexzYKKkdjPocQM4fjQx10FuxCXdwlLdvOfSyl94k3OsZ44j9BbMn1tu5tNKLGP5nCuj8XeIGZE3pmHq9KztIAwaeC5_7qYb7JGXSl2KswuT5A6_j_UQFuY_hW1Hy4eEnjT&lib=Ma7Uj8Yv9LxahLPM9vyu1WITopOPt4sIH";
+  "https://script.google.com/macros/s/AKfycbzfOSbqvB5IsyT0jIl9yPRGsDZfOWJ1xv5XMeBYQWV1K81GjSzjCNzCMOAotTQwGk9lQQ/exec";
 
 
-
-// ==================================================
+// ==============================
 // STAFF LIST
-// ==================================================
+// ==============================
 
-function loadStaffList() {
-
-  const staffStatus =
-    document.getElementById("staffStatus");
-
-  staffStatus.innerText =
-    "Loading staff names...";
-
-
-  const script =
-    document.createElement("script");
-
-
-  script.src =
-    WEB_APP_URL +
-    "?mode=staffList&callback=staffListCallback";
-
-
-  script.onerror = function() {
-
-    staffStatus.innerText =
-      "❌ Unable to load Staff List.";
-
-  };
-
-
-  document.body.appendChild(script);
-
-}
-
-
-
-function staffListCallback(names) {
+async function loadStaffList() {
 
   const staffSelect =
     document.getElementById("staff");
@@ -210,35 +16,60 @@ function staffListCallback(names) {
   const staffStatus =
     document.getElementById("staffStatus");
 
+  try {
 
-  staffSelect.innerHTML =
-    '<option value="">Select Staff Name</option>';
+    staffStatus.innerText =
+      "Loading staff names...";
 
+    const response =
+      await fetch(
+        WEB_APP_URL + "?mode=staffList"
+      );
 
-  names.forEach(function(name) {
+    if (!response.ok) {
+      throw new Error(
+        "HTTP " + response.status
+      );
+    }
 
-    const option =
-      document.createElement("option");
+    const names =
+      await response.json();
 
-    option.value = name;
+    staffSelect.innerHTML =
+      '<option value="">Select Staff Name</option>';
 
-    option.textContent = name;
+    names.forEach(function(name) {
 
-    staffSelect.appendChild(option);
+      const option =
+        document.createElement("option");
 
-  });
+      option.value = name;
+      option.textContent = name;
 
+      staffSelect.appendChild(option);
 
-  staffStatus.innerText =
-    "✅ " + names.length + " staff loaded";
+    });
 
+    staffStatus.innerText =
+      "✅ " +
+      names.length +
+      " staff loaded";
+
+  }
+
+  catch (error) {
+
+    staffStatus.innerText =
+      "❌ Unable to load Staff List: " +
+      error.message;
+
+  }
 }
 
 
-
-// ==================================================
+// ==============================
 // CAMERA
-// ==================================================
+// ==============================
 
 const video =
   document.getElementById("video");
@@ -247,28 +78,20 @@ const status =
   document.getElementById("status");
 
 
-
 async function startCamera() {
 
   try {
 
     const stream =
       await navigator.mediaDevices.getUserMedia({
-
         video: true,
-
         audio: false
-
       });
 
-
-    video.srcObject =
-      stream;
-
+    video.srcObject = stream;
 
     status.innerText =
       "✅ Camera ready";
-
 
   }
 
@@ -285,10 +108,9 @@ async function startCamera() {
 }
 
 
-
-// ==================================================
+// ==============================
 // BASIC CHECK
-// ==================================================
+// ==============================
 
 function checkBeforeClock() {
 
@@ -303,16 +125,13 @@ function checkBeforeClock() {
       .value
       .trim();
 
-
   if (!staff) {
 
     status.innerText =
       "❌ Please select Staff Name.";
 
     return false;
-
   }
-
 
   if (!pin) {
 
@@ -320,9 +139,7 @@ function checkBeforeClock() {
       "❌ Please enter PIN.";
 
     return false;
-
   }
-
 
   if (
     !video.srcObject ||
@@ -334,19 +151,15 @@ function checkBeforeClock() {
       "❌ Camera is not ready.";
 
     return false;
-
   }
 
-
   return true;
-
 }
 
 
-
-// ==================================================
+// ==============================
 // CLOCK IN
-// ==================================================
+// ==============================
 
 function clockIn() {
 
@@ -354,17 +167,14 @@ function clockIn() {
     return;
   }
 
-
   status.innerText =
     "✅ Staff, PIN and Camera are ready. Clock In connection will be added next.";
-
 }
 
 
-
-// ==================================================
+// ==============================
 // CLOCK OUT
-// ==================================================
+// ==============================
 
 function clockOut() {
 
@@ -372,24 +182,16 @@ function clockOut() {
     return;
   }
 
-
   status.innerText =
     "✅ Staff, PIN and Camera are ready. Clock Out connection will be added next.";
-
 }
 
 
-
-// ==================================================
+// ==============================
 // START
-// ==================================================
+// ==============================
 
 loadStaffList();
-
 startCamera();
 
-
 </script>
-
-</body>
-</html>
