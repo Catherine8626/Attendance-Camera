@@ -20,7 +20,7 @@
     }
 
     h1 {
-      margin-bottom: 30px;
+      margin-bottom: 25px;
     }
 
     select,
@@ -53,9 +53,15 @@
       background: white;
     }
 
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     #status {
       margin-top: 15px;
       font-size: 16px;
+      white-space: pre-line;
     }
 
     #staffStatus {
@@ -104,13 +110,13 @@
   <!-- BUTTONS -->
   <button
     id="clockIn"
-    onclick="clockIn()">
+    onclick="submitAttendance('IN')">
     🟢 CLOCK IN
   </button>
 
   <button
     id="clockOut"
-    onclick="clockOut()">
+    onclick="submitAttendance('OUT')">
     🔴 CLOCK OUT
   </button>
 
@@ -124,7 +130,7 @@
 <script>
 
 // ==================================================
-// YOUR APPS SCRIPT WEB APP URL
+// APPS SCRIPT WEB APP URL
 // ==================================================
 
 const WEB_APP_URL =
@@ -242,7 +248,7 @@ async function startCamera() {
 
 
 // ==================================================
-// BASIC CHECK
+// CHECK BEFORE CLOCK
 // ==================================================
 
 function checkBeforeClock() {
@@ -291,32 +297,126 @@ function checkBeforeClock() {
 
 
 // ==================================================
-// CLOCK IN
+// TAKE PHOTO
 // ==================================================
 
-function clockIn() {
+function takePhoto() {
 
-  if (!checkBeforeClock()) {
-    return;
-  }
+  const canvas =
+    document.createElement("canvas");
 
-  status.innerText =
-    "✅ Staff, PIN and Camera are ready.";
+  canvas.width =
+    video.videoWidth;
+
+  canvas.height =
+    video.videoHeight;
+
+  const ctx =
+    canvas.getContext("2d");
+
+  ctx.drawImage(
+    video,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  return canvas.toDataURL(
+    "image/jpeg",
+    0.75
+  );
 }
 
 
 // ==================================================
-// CLOCK OUT
+// CLOCK IN / CLOCK OUT
 // ==================================================
 
-function clockOut() {
+async function submitAttendance(action) {
 
   if (!checkBeforeClock()) {
     return;
   }
 
+  const staff =
+    document
+      .getElementById("staff")
+      .value;
+
+  const pin =
+    document
+      .getElementById("pin")
+      .value
+      .trim();
+
+  const photoData =
+    takePhoto();
+
+  const clockInButton =
+    document.getElementById("clockIn");
+
+  const clockOutButton =
+    document.getElementById("clockOut");
+
+  clockInButton.disabled = true;
+  clockOutButton.disabled = true;
+
   status.innerText =
-    "✅ Staff, PIN and Camera are ready.";
+    "Processing...";
+
+  try {
+
+    const response =
+      await fetch(WEB_APP_URL, {
+
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "text/plain;charset=utf-8"
+        },
+
+        body: JSON.stringify({
+          staffName: staff,
+          pin: pin,
+          action: action,
+          photoData: photoData
+        })
+
+      });
+
+    const result =
+      await response.json();
+
+    status.innerText =
+      result.message;
+
+    if (result.success) {
+
+      // 成功后清空 PIN
+      document
+        .getElementById("pin")
+        .value = "";
+
+    }
+
+  }
+
+  catch (error) {
+
+    status.innerText =
+      "❌ Connection error: " +
+      error.message;
+
+  }
+
+  finally {
+
+    clockInButton.disabled = false;
+    clockOutButton.disabled = false;
+
+  }
 }
 
 
@@ -325,7 +425,6 @@ function clockOut() {
 // ==================================================
 
 loadStaffList();
-
 startCamera();
 
 </script>
