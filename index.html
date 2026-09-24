@@ -338,30 +338,7 @@ async function submitAttendance(action) {
 
   try {
 
-    const response =
-      await fetch(WEB_APP_URL, {
-
-        method: "POST",
-
-        headers: {
-          "Content-Type":
-            "text/plain;charset=utf-8"
-        },
-
-        body: JSON.stringify({
-          staffName: staff,
-          action: action,
-          photoData: photoData
-        })
-
-      });
-
-    const result =
-      await response.json();
-
-    status.innerText =
-      result.message;
-
+    
   }
 
   catch (error) {
