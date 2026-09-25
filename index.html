@@ -308,55 +308,585 @@ function takePhoto() {
 // CLOCK IN / CLOCK OUT
 // ==================================================
 
-async function submitAttendance(action) {
+function doGet(e) {
 
-  if (!checkBeforeClock()) {
-    return;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const nameList = ss.getSheetByName("Name List");
+
+  if (!nameList) {
+    return ContentService
+      .createTextOutput("Name List sheet not found");
   }
 
-  const staff =
-    document
-      .getElementById("staff")
-      .value;
+  // =========================================
+  // STAFF LIST FOR GITHUB
+  // =========================================
+  if (e && e.parameter.mode === "staffList") {
 
-  const photoData =
-    takePhoto();
+    const lastRow = nameList.getLastRow();
 
-  const clockInButton =
-    document.getElementById("clockIn");
+    let staffNames = [];
 
-  const clockOutButton =
-    document.getElementById("clockOut");
+    if (lastRow >= 2) {
 
-  clockInButton.disabled = true;
-  clockOutButton.disabled = true;
+      staffNames = nameList
+        .getRange(2, 3, lastRow - 1, 1)
+        .getDisplayValues()
+        .flat()
+        .map(name => String(name).trim())
+        .filter(name => name !== "");
+    }
 
-  status.innerText =
-    action === "IN"
-      ? "Clocking in..."
-      : "Clocking out...";
+    const uniqueNames =
+      [...new Set(staffNames)];
+
+    const callback =
+      e.parameter.callback ||
+      "staffListCallback";
+
+    return ContentService
+      .createTextOutput(
+        callback +
+        "(" +
+        JSON.stringify(uniqueNames) +
+        ");"
+      )
+      .setMimeType(
+        ContentService.MimeType.JAVASCRIPT
+      );
+  }
+
+  return ContentService
+    .createTextOutput(
+      "Attendance API Ready"
+    );
+}
+
+
+// =========================================
+// RECEIVE CLOCK IN / CLOCK OUT
+// =========================================
+
+function doPost(e) {
 
   try {
 
-    
+    const data =
+      JSON.parse(
+        e.postData.contents
+      );
+
+    const staffName =
+      String(
+        data.staffName || ""
+      ).trim();
+
+    const action =
+      String(
+        data.action || ""
+      )
+      .trim()
+      .toUpperCase();
+
+    const photoData =
+      String(
+        data.photoData || ""
+      );
+
+
+    // =========================================
+    // BASIC CHECK
+    // =========================================
+
+    if (!staffName) {
+
+      return jsonResponse(
+        false,
+        "Please select Staff Name."
+      );
+    }
+
+    if (
+      action !== "IN" &&
+      action !== "OUT"
+    ) {
+
+      return jsonResponse(
+        false,
+        "Invalid action."
+      );
+    }
+
+    if (!photoData) {
+
+      return jsonResponse(
+        false,
+        "Photo is required."
+      );
+    }
+
+
+    const ss =
+      SpreadsheetApp
+        .getActiveSpreadsheet();
+
+    const tz =
+      ss.getSpreadsheetTimeZone();
+
+    const nameList =
+      ss.getSheetByName(
+        "Name List"
+      );
+
+
+    if (!nameList) {
+
+      return jsonResponse(
+        false,
+        "Name List sheet not found."
+      );
+    }
+
+
+    // =========================================
+    // CHECK STAFF EXISTS IN NAME LIST
+    // COLUMN C = STAFF NAME
+    // =========================================
+
+    const lastNameRow =
+      nameList.getLastRow();
+
+    if (lastNameRow < 2) {
+
+      return jsonResponse(
+        false,
+        "No staff found in Name List."
+      );
+    }
+
+
+    const staffNames =
+      nameList
+        .getRange(
+          2,
+          3,
+          lastNameRow - 1,
+          1
+        )
+        .getDisplayValues()
+        .flat()
+        .map(name =>
+          String(name).trim()
+        );
+
+
+    if (
+      !staffNames.includes(
+        staffName
+      )
+    ) {
+
+      return jsonResponse(
+        false,
+        "Staff not found."
+      );
+    }
+
+
+    // =========================================
+    // FIND STAFF SHEET
+    // =========================================
+
+    const sheet =
+      ss.getSheetByName(
+        staffName
+      );
+
+
+    if (!sheet) {
+
+      return jsonResponse(
+        false,
+        "Staff sheet not found."
+      );
+    }
+
+
+    // =========================================
+    // CURRENT TIME / DATES
+    // =========================================
+
+    const now =
+      new Date();
+
+    const todayText =
+      Utilities.formatDate(
+        now,
+        tz,
+        "yyyy-MM-dd"
+      );
+
+    const yesterday =
+      new Date(now);
+
+    yesterday.setDate(
+      yesterday.getDate() - 1
+    );
+
+    const yesterdayText =
+      Utilities.formatDate(
+        yesterday,
+        tz,
+        "yyyy-MM-dd"
+      );
+
+
+    // =========================================
+    // READ DATE COLUMN
+    // =========================================
+
+    const lastRow =
+      sheet.getLastRow();
+
+
+    if (lastRow < 4) {
+
+      return jsonResponse(
+        false,
+        "Staff sheet has no attendance dates."
+      );
+    }
+
+
+    const dates =
+      sheet
+        .getRange(
+          4,
+          1,
+          lastRow - 3,
+          1
+        )
+        .getValues();
+
+
+    let todayRow = 0;
+    let yesterdayRow = 0;
+
+
+    for (
+      let i = 0;
+      i < dates.length;
+      i++
+    ) {
+
+      const dateValue =
+        dates[i][0];
+
+
+      if (
+        dateValue instanceof Date
+      ) {
+
+        const rowDate =
+          Utilities.formatDate(
+            dateValue,
+            tz,
+            "yyyy-MM-dd"
+          );
+
+
+        if (
+          rowDate === todayText
+        ) {
+
+          todayRow =
+            i + 4;
+        }
+
+
+        if (
+          rowDate === yesterdayText
+        ) {
+
+          yesterdayRow =
+            i + 4;
+        }
+      }
+    }
+
+
+    // =========================================
+    // CLOCK IN
+    //
+    // B = Clock In
+    // D = Clock In Photo
+    // =========================================
+
+    if (action === "IN") {
+
+      if (!todayRow) {
+
+        return jsonResponse(
+          false,
+          "Today's date not found."
+        );
+      }
+
+
+      const clockInCell =
+        sheet.getRange(
+          todayRow,
+          2
+        );
+
+      const photoCell =
+        sheet.getRange(
+          todayRow,
+          4
+        );
+
+
+      if (
+        clockInCell
+          .getDisplayValue()
+          .trim() !== ""
+      ) {
+
+        return jsonResponse(
+          false,
+          "You have already clocked in today."
+        );
+      }
+
+
+      const photoUrl =
+        saveAttendancePhoto(
+          staffName,
+          action,
+          now,
+          photoData
+        );
+
+
+      clockInCell
+        .setValue(now)
+        .setNumberFormat(
+          "HH:mm:ss"
+        );
+
+
+      photoCell
+        .setValue(
+          photoUrl
+        );
+
+
+      SpreadsheetApp.flush();
+
+
+      return jsonResponse(
+        true,
+        "✅ Clock In successful\n" +
+        Utilities.formatDate(
+          now,
+          tz,
+          "HH:mm:ss"
+        )
+      );
+    }
+
+
+    // =========================================
+    // CLOCK OUT
+    //
+    // DAY SHIFT:
+    // 今天有 Clock In、今天没有 Clock Out
+    // → 写回今天
+    //
+    // NIGHT SHIFT:
+    // 昨天有 Clock In、昨天没有 Clock Out
+    // → 写回昨天
+    //
+    // C = Clock Out
+    // E = Clock Out Photo
+    // =========================================
+
+    if (action === "OUT") {
+
+      let clockOutRow = 0;
+
+
+      // =====================================
+      // 先检查今天有没有未完成的 Clock In
+      // =====================================
+
+      if (todayRow) {
+
+        const todayClockInCell =
+          sheet.getRange(
+            todayRow,
+            2
+          );
+
+        const todayClockOutCell =
+          sheet.getRange(
+            todayRow,
+            3
+          );
+
+
+        if (
+          todayClockInCell
+            .getDisplayValue()
+            .trim() !== "" &&
+          todayClockOutCell
+            .getDisplayValue()
+            .trim() === ""
+        ) {
+
+          clockOutRow =
+            todayRow;
+        }
+      }
+
+
+      // =====================================
+      // 如果今天没有，再检查昨天
+      // =====================================
+
+      if (
+        !clockOutRow &&
+        yesterdayRow
+      ) {
+
+        const yesterdayClockInCell =
+          sheet.getRange(
+            yesterdayRow,
+            2
+          );
+
+        const yesterdayClockOutCell =
+          sheet.getRange(
+            yesterdayRow,
+            3
+          );
+
+
+        if (
+          yesterdayClockInCell
+            .getDisplayValue()
+            .trim() !== "" &&
+          yesterdayClockOutCell
+            .getDisplayValue()
+            .trim() === ""
+        ) {
+
+          clockOutRow =
+            yesterdayRow;
+        }
+      }
+
+
+      // =====================================
+      // 今天和昨天都找不到 active Clock In
+      // =====================================
+
+      if (!clockOutRow) {
+
+        return jsonResponse(
+          false,
+          "No active Clock In found."
+        );
+      }
+
+
+      const clockOutCell =
+        sheet.getRange(
+          clockOutRow,
+          3
+        );
+
+      const photoCell =
+        sheet.getRange(
+          clockOutRow,
+          5
+        );
+
+
+      const photoUrl =
+        saveAttendancePhoto(
+          staffName,
+          action,
+          now,
+          photoData
+        );
+
+
+      clockOutCell
+        .setValue(now)
+        .setNumberFormat(
+          "HH:mm:ss"
+        );
+
+
+      photoCell
+        .setValue(
+          photoUrl
+        );
+
+
+      SpreadsheetApp.flush();
+
+
+      return jsonResponse(
+        true,
+        "✅ Clock Out successful\n" +
+        Utilities.formatDate(
+          now,
+          tz,
+          "HH:mm:ss"
+        )
+      );
+    }
+
+
+    return jsonResponse(
+      false,
+      "Invalid action."
+    );
+
   }
 
   catch (error) {
 
-    status.innerText =
-      "❌ Connection error: " +
-      error.message;
-
-  }
-
-  finally {
-
-    clockInButton.disabled = false;
-    clockOutButton.disabled = false;
-
+    return jsonResponse(
+      false,
+      error.message
+    );
   }
 }
 
+
+// =========================================
+// JSON RESPONSE
+// =========================================
+
+function jsonResponse(
+  success,
+  message
+) {
+
+  return ContentService
+    .createTextOutput(
+      JSON.stringify({
+        success: success,
+        message: message
+      })
+    )
+    .setMimeType(
+      ContentService.MimeType.JSON
+    );
+}
 
 // ==================================================
 // START PAGE
