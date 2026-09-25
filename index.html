@@ -76,7 +76,6 @@
 
   <h1>Staff Attendance</h1>
 
-  <!-- STAFF NAME -->
   <select id="staff">
     <option value="">Loading Staff List...</option>
   </select>
@@ -87,7 +86,6 @@
 
   <br>
 
-  <!-- CAMERA -->
   <video
     id="video"
     autoplay
@@ -96,7 +94,6 @@
 
   <br>
 
-  <!-- BUTTONS -->
   <button
     id="clockIn"
     onclick="submitAttendance('IN')">
@@ -118,17 +115,17 @@
 
 <script>
 
-// ==================================================
+// =========================================
 // APPS SCRIPT WEB APP URL
-// ==================================================
+// =========================================
 
 const WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycbzfOSbqvB5IsyT0jIl9yPRGsDZfOWJ1xv5XMeBYQWV1K81GjSzjCNzCMOAotTQwGk9lQQ/exec";
 
 
-// ==================================================
+// =========================================
 // STAFF LIST
-// ==================================================
+// =========================================
 
 function loadStaffList() {
 
@@ -155,13 +152,12 @@ function loadStaffList() {
     WEB_APP_URL +
     "?mode=staffList" +
     "&callback=staffListCallback" +
-    "&t=" + Date.now();
+    "&t=" +
+    Date.now();
 
   script.onerror = function() {
-
     staffStatus.innerText =
       "❌ Unable to load Staff List.";
-
   };
 
   document.body.appendChild(script);
@@ -196,9 +192,9 @@ function staffListCallback(names) {
 }
 
 
-// ==================================================
+// =========================================
 // CAMERA
-// ==================================================
+// =========================================
 
 const video =
   document.getElementById("video");
@@ -236,16 +232,14 @@ async function startCamera() {
 }
 
 
-// ==================================================
-// CHECK BEFORE CLOCK
-// ==================================================
+// =========================================
+// CHECK
+// =========================================
 
 function checkBeforeClock() {
 
   const staff =
-    document
-      .getElementById("staff")
-      .value;
+    document.getElementById("staff").value;
 
   if (!staff) {
 
@@ -271,9 +265,9 @@ function checkBeforeClock() {
 }
 
 
-// ==================================================
+// =========================================
 // TAKE PHOTO
-// ==================================================
+// =========================================
 
 function takePhoto() {
 
@@ -304,593 +298,100 @@ function takePhoto() {
 }
 
 
-// ==================================================
+// =========================================
 // CLOCK IN / CLOCK OUT
-// ==================================================
-
-function doGet(e) {
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const nameList = ss.getSheetByName("Name List");
-
-  if (!nameList) {
-    return ContentService
-      .createTextOutput("Name List sheet not found");
-  }
-
-  // =========================================
-  // STAFF LIST FOR GITHUB
-  // =========================================
-  if (e && e.parameter.mode === "staffList") {
-
-    const lastRow = nameList.getLastRow();
-
-    let staffNames = [];
-
-    if (lastRow >= 2) {
-
-      staffNames = nameList
-        .getRange(2, 3, lastRow - 1, 1)
-        .getDisplayValues()
-        .flat()
-        .map(name => String(name).trim())
-        .filter(name => name !== "");
-    }
-
-    const uniqueNames =
-      [...new Set(staffNames)];
-
-    const callback =
-      e.parameter.callback ||
-      "staffListCallback";
-
-    return ContentService
-      .createTextOutput(
-        callback +
-        "(" +
-        JSON.stringify(uniqueNames) +
-        ");"
-      )
-      .setMimeType(
-        ContentService.MimeType.JAVASCRIPT
-      );
-  }
-
-  return ContentService
-    .createTextOutput(
-      "Attendance API Ready"
-    );
-}
-
-
-// =========================================
-// RECEIVE CLOCK IN / CLOCK OUT
 // =========================================
 
-function doPost(e) {
+async function submitAttendance(action) {
+
+  if (!checkBeforeClock()) {
+    return;
+  }
+
+  const staff =
+    document.getElementById("staff").value;
+
+  const photoData =
+    takePhoto();
+
+  const clockInButton =
+    document.getElementById("clockIn");
+
+  const clockOutButton =
+    document.getElementById("clockOut");
+
+  clockInButton.disabled = true;
+  clockOutButton.disabled = true;
+
+  status.innerText =
+    action === "IN"
+      ? "⏳ Clocking in..."
+      : "⏳ Clocking out...";
 
   try {
 
-    const data =
-      JSON.parse(
-        e.postData.contents
-      );
+    const response =
+      await fetch(WEB_APP_URL, {
 
-    const staffName =
-      String(
-        data.staffName || ""
-      ).trim();
+        method: "POST",
 
-    const action =
-      String(
-        data.action || ""
-      )
-      .trim()
-      .toUpperCase();
+        headers: {
+          "Content-Type":
+            "text/plain;charset=utf-8"
+        },
 
-    const photoData =
-      String(
-        data.photoData || ""
-      );
+        body: JSON.stringify({
+          staffName: staff,
+          action: action,
+          photoData: photoData
+        })
 
+      });
 
-    // =========================================
-    // BASIC CHECK
-    // =========================================
+    const responseText =
+      await response.text();
 
-    if (!staffName) {
+    try {
 
-      return jsonResponse(
-        false,
-        "Please select Staff Name."
-      );
+      const result =
+        JSON.parse(responseText);
+
+      status.innerText =
+        result.message;
+
     }
 
-    if (
-      action !== "IN" &&
-      action !== "OUT"
-    ) {
+    catch (jsonError) {
 
-      return jsonResponse(
-        false,
-        "Invalid action."
-      );
+      status.innerText =
+        action === "IN"
+          ? "✅ Clock In submitted"
+          : "✅ Clock Out submitted";
+
     }
-
-    if (!photoData) {
-
-      return jsonResponse(
-        false,
-        "Photo is required."
-      );
-    }
-
-
-    const ss =
-      SpreadsheetApp
-        .getActiveSpreadsheet();
-
-    const tz =
-      ss.getSpreadsheetTimeZone();
-
-    const nameList =
-      ss.getSheetByName(
-        "Name List"
-      );
-
-
-    if (!nameList) {
-
-      return jsonResponse(
-        false,
-        "Name List sheet not found."
-      );
-    }
-
-
-    // =========================================
-    // CHECK STAFF EXISTS IN NAME LIST
-    // COLUMN C = STAFF NAME
-    // =========================================
-
-    const lastNameRow =
-      nameList.getLastRow();
-
-    if (lastNameRow < 2) {
-
-      return jsonResponse(
-        false,
-        "No staff found in Name List."
-      );
-    }
-
-
-    const staffNames =
-      nameList
-        .getRange(
-          2,
-          3,
-          lastNameRow - 1,
-          1
-        )
-        .getDisplayValues()
-        .flat()
-        .map(name =>
-          String(name).trim()
-        );
-
-
-    if (
-      !staffNames.includes(
-        staffName
-      )
-    ) {
-
-      return jsonResponse(
-        false,
-        "Staff not found."
-      );
-    }
-
-
-    // =========================================
-    // FIND STAFF SHEET
-    // =========================================
-
-    const sheet =
-      ss.getSheetByName(
-        staffName
-      );
-
-
-    if (!sheet) {
-
-      return jsonResponse(
-        false,
-        "Staff sheet not found."
-      );
-    }
-
-
-    // =========================================
-    // CURRENT TIME / DATES
-    // =========================================
-
-    const now =
-      new Date();
-
-    const todayText =
-      Utilities.formatDate(
-        now,
-        tz,
-        "yyyy-MM-dd"
-      );
-
-    const yesterday =
-      new Date(now);
-
-    yesterday.setDate(
-      yesterday.getDate() - 1
-    );
-
-    const yesterdayText =
-      Utilities.formatDate(
-        yesterday,
-        tz,
-        "yyyy-MM-dd"
-      );
-
-
-    // =========================================
-    // READ DATE COLUMN
-    // =========================================
-
-    const lastRow =
-      sheet.getLastRow();
-
-
-    if (lastRow < 4) {
-
-      return jsonResponse(
-        false,
-        "Staff sheet has no attendance dates."
-      );
-    }
-
-
-    const dates =
-      sheet
-        .getRange(
-          4,
-          1,
-          lastRow - 3,
-          1
-        )
-        .getValues();
-
-
-    let todayRow = 0;
-    let yesterdayRow = 0;
-
-
-    for (
-      let i = 0;
-      i < dates.length;
-      i++
-    ) {
-
-      const dateValue =
-        dates[i][0];
-
-
-      if (
-        dateValue instanceof Date
-      ) {
-
-        const rowDate =
-          Utilities.formatDate(
-            dateValue,
-            tz,
-            "yyyy-MM-dd"
-          );
-
-
-        if (
-          rowDate === todayText
-        ) {
-
-          todayRow =
-            i + 4;
-        }
-
-
-        if (
-          rowDate === yesterdayText
-        ) {
-
-          yesterdayRow =
-            i + 4;
-        }
-      }
-    }
-
-
-    // =========================================
-    // CLOCK IN
-    //
-    // B = Clock In
-    // D = Clock In Photo
-    // =========================================
-
-    if (action === "IN") {
-
-      if (!todayRow) {
-
-        return jsonResponse(
-          false,
-          "Today's date not found."
-        );
-      }
-
-
-      const clockInCell =
-        sheet.getRange(
-          todayRow,
-          2
-        );
-
-      const photoCell =
-        sheet.getRange(
-          todayRow,
-          4
-        );
-
-
-      if (
-        clockInCell
-          .getDisplayValue()
-          .trim() !== ""
-      ) {
-
-        return jsonResponse(
-          false,
-          "You have already clocked in today."
-        );
-      }
-
-
-      const photoUrl =
-        saveAttendancePhoto(
-          staffName,
-          action,
-          now,
-          photoData
-        );
-
-
-      clockInCell
-        .setValue(now)
-        .setNumberFormat(
-          "HH:mm:ss"
-        );
-
-
-      photoCell
-        .setValue(
-          photoUrl
-        );
-
-
-      SpreadsheetApp.flush();
-
-
-      return jsonResponse(
-        true,
-        "✅ Clock In successful\n" +
-        Utilities.formatDate(
-          now,
-          tz,
-          "HH:mm:ss"
-        )
-      );
-    }
-
-
-    // =========================================
-    // CLOCK OUT
-    //
-    // DAY SHIFT:
-    // 今天有 Clock In、今天没有 Clock Out
-    // → 写回今天
-    //
-    // NIGHT SHIFT:
-    // 昨天有 Clock In、昨天没有 Clock Out
-    // → 写回昨天
-    //
-    // C = Clock Out
-    // E = Clock Out Photo
-    // =========================================
-
-    if (action === "OUT") {
-
-      let clockOutRow = 0;
-
-
-      // =====================================
-      // 先检查今天有没有未完成的 Clock In
-      // =====================================
-
-      if (todayRow) {
-
-        const todayClockInCell =
-          sheet.getRange(
-            todayRow,
-            2
-          );
-
-        const todayClockOutCell =
-          sheet.getRange(
-            todayRow,
-            3
-          );
-
-
-        if (
-          todayClockInCell
-            .getDisplayValue()
-            .trim() !== "" &&
-          todayClockOutCell
-            .getDisplayValue()
-            .trim() === ""
-        ) {
-
-          clockOutRow =
-            todayRow;
-        }
-      }
-
-
-      // =====================================
-      // 如果今天没有，再检查昨天
-      // =====================================
-
-      if (
-        !clockOutRow &&
-        yesterdayRow
-      ) {
-
-        const yesterdayClockInCell =
-          sheet.getRange(
-            yesterdayRow,
-            2
-          );
-
-        const yesterdayClockOutCell =
-          sheet.getRange(
-            yesterdayRow,
-            3
-          );
-
-
-        if (
-          yesterdayClockInCell
-            .getDisplayValue()
-            .trim() !== "" &&
-          yesterdayClockOutCell
-            .getDisplayValue()
-            .trim() === ""
-        ) {
-
-          clockOutRow =
-            yesterdayRow;
-        }
-      }
-
-
-      // =====================================
-      // 今天和昨天都找不到 active Clock In
-      // =====================================
-
-      if (!clockOutRow) {
-
-        return jsonResponse(
-          false,
-          "No active Clock In found."
-        );
-      }
-
-
-      const clockOutCell =
-        sheet.getRange(
-          clockOutRow,
-          3
-        );
-
-      const photoCell =
-        sheet.getRange(
-          clockOutRow,
-          5
-        );
-
-
-      const photoUrl =
-        saveAttendancePhoto(
-          staffName,
-          action,
-          now,
-          photoData
-        );
-
-
-      clockOutCell
-        .setValue(now)
-        .setNumberFormat(
-          "HH:mm:ss"
-        );
-
-
-      photoCell
-        .setValue(
-          photoUrl
-        );
-
-
-      SpreadsheetApp.flush();
-
-
-      return jsonResponse(
-        true,
-        "✅ Clock Out successful\n" +
-        Utilities.formatDate(
-          now,
-          tz,
-          "HH:mm:ss"
-        )
-      );
-    }
-
-
-    return jsonResponse(
-      false,
-      "Invalid action."
-    );
 
   }
 
   catch (error) {
 
-    return jsonResponse(
-      false,
-      error.message
-    );
+    status.innerText =
+      "❌ Connection error: " +
+      error.message;
+
+  }
+
+  finally {
+
+    clockInButton.disabled = false;
+    clockOutButton.disabled = false;
+
   }
 }
 
 
 // =========================================
-// JSON RESPONSE
-// =========================================
-
-function jsonResponse(
-  success,
-  message
-) {
-
-  return ContentService
-    .createTextOutput(
-      JSON.stringify({
-        success: success,
-        message: message
-      })
-    )
-    .setMimeType(
-      ContentService.MimeType.JSON
-    );
-}
-
-// ==================================================
 // START PAGE
-// ==================================================
+// =========================================
 
 loadStaffList();
 startCamera();
